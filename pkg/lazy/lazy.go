@@ -68,4 +68,3 @@ func (lm *MustLazy[T]) Load() T {
 func NewMust[T any](loader func() T) *MustLazy[T] {
 	return &MustLazy[T]{load: loader}
 }
-
