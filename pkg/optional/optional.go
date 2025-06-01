@@ -18,10 +18,10 @@ import (
 	"reflect"
 )
 
-// ErrNotSet is returned when calling [Optional.Get] on an empty [Optional].
+// ErrNotSet is returned when calling [Optional.Get] on an empty Optional.
 var ErrNotSet = errors.New("optional value not set")
 
-// Optional may hold a value of type T. To check whether an [Optional] has been populated, the
+// Optional may hold a value of type T. To check whether an Optional has been populated, the
 // [IsSet] and [IsEmpty] methods may be used.
 //
 // This type should not be directly instantiated; use [Of] or [Empty] instead.
@@ -30,12 +30,12 @@ type Optional[T any] struct {
 	value *T
 }
 
-// Empty creates a new, unset [Optional].
+// Empty creates a new, unset Optional.
 func Empty[T any]() Optional[T] {
 	return Optional[T]{}
 }
 
-// Of creates a new [Optional] containing the specified value.
+// Of creates a new Optional containing the specified value.
 func Of[T any](value T) Optional[T] {
 	return Optional[T]{
 		isSet: true,
@@ -43,25 +43,25 @@ func Of[T any](value T) Optional[T] {
 	}
 }
 
-// IsSet returns true if the [Optional] is populated.
+// IsSet returns true if the Optional is populated.
 func (o *Optional[T]) IsSet() bool {
 	return o.isSet
 }
 
-// IsEmpty returns true if the [Optional] is not populated.
+// IsEmpty returns true if the Optional is not populated.
 func (o *Optional[T]) IsEmpty() bool {
 	return !o.IsSet()
 }
 
-// Set populates the [Optional] with the given value.
+// Set populates the Optional with the given value.
 func (o *Optional[T]) Set(value T) {
 	o.isSet = true
 	o.value = &value
 }
 
-// Get returns the value stored in the [Optional] if it is set.
+// Get returns the value stored in the Optional if it is set.
 //
-// If the [Optional] is unset, the returned error will be non-nil.
+// If the Optional is unset, the returned error will be non-nil.
 func (o *Optional[T]) Get() (T, error) {
 	if o.IsEmpty() {
 		var tZeroVal T
@@ -70,7 +70,7 @@ func (o *Optional[T]) Get() (T, error) {
 	return *o.value, nil
 }
 
-// MustGet returns the value stored in the [Optional] if it is set.
+// MustGet returns the value stored in the Optional if it is set.
 //
 // If the [Optional] is unset, this method panics.
 func (o *Optional[T]) MustGet() T {
@@ -80,7 +80,7 @@ func (o *Optional[T]) MustGet() T {
 	return *o.value
 }
 
-// OrElse returns the value stored in the [Optional] if it is set, otherwise it returns
+// OrElse returns the value stored in the Optional if it is set, otherwise it returns
 // defaultValue.
 func (o *Optional[T]) OrElse(defaultValue T) T {
 	if o.IsSet() {
@@ -89,7 +89,7 @@ func (o *Optional[T]) OrElse(defaultValue T) T {
 	return defaultValue
 }
 
-// OrElseLazy returns the value stored in the [Optional] if it is set, otherwise it returns the
+// OrElseLazy returns the value stored in the Optional if it is set, otherwise it returns the
 // result of the given callback.
 func (o *Optional[T]) OrElseLazy(callback func() (T, error)) (T, error) {
 	if o.IsSet() {
@@ -98,7 +98,7 @@ func (o *Optional[T]) OrElseLazy(callback func() (T, error)) (T, error) {
 	return callback()
 }
 
-// OrElseMustLazy returns the value stored in the [Optional] if it is set, otherwise it returns the
+// OrElseMustLazy returns the value stored in the Optional if it is set, otherwise it returns the
 // result of the given callback.
 //
 // If the required callback may return an error, use [Optional.OrElseLazy] instead.
@@ -109,9 +109,9 @@ func (o *Optional[T]) OrElseMustLazy(callback func() T) T {
 	return callback()
 }
 
-// Equal returns true if the given [Optional] is equal to another.
+// Equal returns true if the given Optional is equal to another.
 //
-// The provided argument may be an [Optional] of the same type, or a pointer to one. If an argument
+// The provided argument may be an Optional of the same type, or a pointer to one. If an argument
 // of any other type is provided, the two objects are never considered equal.
 //
 // Two Optionals of the same type are considered to be equal if any of the following are true:
@@ -134,9 +134,9 @@ func (o *Optional[T]) Equal(o2 any) bool {
 	return o.IsEmpty() || reflect.DeepEqual(*o.value, *other.value)
 }
 
-// String returns a string representation of the [Optional].
+// String returns a string representation of the Optional.
 //
-// If the [Optional] in unset, the returned string will be "<empty>".
+// If the Optional in unset, the returned string will be "<empty>".
 func (o *Optional[T]) String() string {
 	if o.IsSet() {
 		return fmt.Sprint(*o.value)
@@ -152,8 +152,8 @@ func (o Optional[T]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(*o.value)
 }
 
-// UnmarshalJSON unmarshals the JSON-encoded data into the underlying value of an [Optional]. If the
-// operation succeeds, the [Optional] is considered to be set.
+// UnmarshalJSON unmarshals the JSON-encoded data into the underlying value of an Optional. If the
+// operation succeeds, the Optional is considered to be set.
 func (o *Optional[T]) UnmarshalJSON(data []byte) error {
 	var dest T
 	if err := json.Unmarshal(data, &dest); err != nil {
@@ -167,4 +167,3 @@ func (o *Optional[T]) UnmarshalJSON(data []byte) error {
 func ptrTo[T any](t T) *T {
 	return &t
 }
-

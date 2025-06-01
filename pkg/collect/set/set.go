@@ -23,7 +23,7 @@ type Set[T comparable] interface {
 	DeleteIfPresent(item T) bool
 
 	// Equal returns whether two sets contain the same items. This is true iff the sets are the
-	// same length and every item in one set is found via [Has] in the other set.
+	// same length and every item in one set is found via Has in the other set.
 	Equal(other Set[T]) bool
 
 	// Has returns whether the provided item is in the set.
