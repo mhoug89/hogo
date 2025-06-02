@@ -1,4 +1,4 @@
-package set
+package hashset
 
 import (
 	"reflect"
@@ -389,34 +389,34 @@ func TestIsEmpty(t *testing.T) {
 
 	for _, tc := range []struct {
 		name string
-		ctor func() Set[string]
+		ctor func() HashSet[string]
 		want bool
 	}{
 		{
 			name: "empty",
-			ctor: func() Set[string] {
+			ctor: func() HashSet[string] {
 				return New[string]()
 			},
 			want: true,
 		},
 		{
 			name: "one_item",
-			ctor: func() Set[string] {
-				return New[string]("a")
+			ctor: func() HashSet[string] {
+				return New("a")
 			},
 			want: false,
 		},
 		{
 			name: "multi_item",
-			ctor: func() Set[string] {
-				return New[string]("a", "b")
+			ctor: func() HashSet[string] {
+				return New("a", "b")
 			},
 			want: false,
 		},
 		{
 			name: "empty_after_new_then_delete_item",
-			ctor: func() Set[string] {
-				s := New[string]("a")
+			ctor: func() HashSet[string] {
+				s := New("a")
 				s.Delete("a")
 				return s
 			},
@@ -424,8 +424,8 @@ func TestIsEmpty(t *testing.T) {
 		},
 		{
 			name: "empty_after_add_then_delete_item",
-			ctor: func() Set[string] {
-				s := New[string]("a")
+			ctor: func() HashSet[string] {
+				s := New("a")
 				s.Delete("a")
 				return s
 			},
@@ -433,8 +433,8 @@ func TestIsEmpty(t *testing.T) {
 		},
 		{
 			name: "empty_after_clear",
-			ctor: func() Set[string] {
-				s := New[string]("a")
+			ctor: func() HashSet[string] {
+				s := New("a")
 				s.Add("b")
 				s.Clear()
 				return s
@@ -554,26 +554,26 @@ func TestUpdate(t *testing.T) {
 
 	for _, tc := range []struct {
 		name      string
-		set       Set[string]
-		toAdd     []Set[string]
+		set       HashSet[string]
+		toAdd     []Iterable[string]
 		wantItems []string
 	}{
 		{
 			name:      "empty_update_none",
 			set:       New[string](),
-			toAdd:     []Set[string]{},
+			toAdd:     nil,
 			wantItems: []string{},
 		},
 		{
 			name:      "empty_update_empty",
 			set:       New[string](),
-			toAdd:     []Set[string]{New[string]()},
+			toAdd:     []Iterable[string]{New[string]()},
 			wantItems: []string{},
 		},
 		{
 			name: "empty_update_one",
 			set:  New[string](),
-			toAdd: []Set[string]{
+			toAdd: []Iterable[string]{
 				New("a", "b", "c"),
 			},
 			wantItems: []string{"a", "b", "c"},
@@ -581,7 +581,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "empty_update_multi",
 			set:  New[string](),
-			toAdd: []Set[string]{
+			toAdd: []Iterable[string]{
 				New(allLetters[0:13]...),
 				New(allLetters[13:]...),
 			},
@@ -590,7 +590,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "empty_update_multi_with_duplicates",
 			set:  New[string](),
-			toAdd: []Set[string]{
+			toAdd: []Iterable[string]{
 				New(allLetters[0:13]...),
 				New(allLetters[13:]...),
 				New(allLetters...),
@@ -600,19 +600,19 @@ func TestUpdate(t *testing.T) {
 		{
 			name:      "nonempty_update_none",
 			set:       New("a"),
-			toAdd:     []Set[string]{},
+			toAdd:     []Iterable[string]{},
 			wantItems: []string{"a"},
 		},
 		{
 			name:      "nonempty_update_empty",
 			set:       New("a"),
-			toAdd:     []Set[string]{New[string]()},
+			toAdd:     []Iterable[string]{New[string]()},
 			wantItems: []string{"a"},
 		},
 		{
 			name: "nonempty_update_one",
 			set:  New("a"),
-			toAdd: []Set[string]{
+			toAdd: []Iterable[string]{
 				New("b", "c"),
 			},
 			wantItems: []string{"a", "b", "c"},
@@ -620,7 +620,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "nonempty_update_multi",
 			set:  New("a"),
-			toAdd: []Set[string]{
+			toAdd: []Iterable[string]{
 				New(allLetters[1:13]...),
 				New(allLetters[13:]...),
 			},
@@ -628,8 +628,8 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name: "nonempty_update_multi_with_duplicates",
-			set:  New[string]("a"),
-			toAdd: []Set[string]{
+			set:  New("a"),
+			toAdd: []Iterable[string]{
 				New(allLetters[0:13]...),
 				New(allLetters[13:]...),
 				New(allLetters...),

@@ -43,7 +43,7 @@ func TestLoad(t *testing.T) {
 			t.Parallel()
 
 			m := mutator{value: tc.wantLoadVal}
-			l := New[string](func() (string, error) {
+			l := New(func() (string, error) {
 				return m.Value(), tc.wantLoadErr
 			})
 			if l.value != nil {
@@ -79,7 +79,7 @@ func TestMustLoad(t *testing.T) {
 	wantLoadVal := "some big expensive string"
 
 	m := mutator{value: wantLoadVal}
-	ml := NewMust[string](func() string {
+	ml := NewMust(func() string {
 		return m.Value()
 	})
 	if ml.value != nil {
@@ -97,4 +97,3 @@ func TestMustLoad(t *testing.T) {
 		t.Fatalf("Second Load() value mismatch; got %q, want %q", gotVal, wantLoadVal)
 	}
 }
-
