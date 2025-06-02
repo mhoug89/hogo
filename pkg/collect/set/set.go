@@ -1,7 +1,12 @@
 // Package set provides a Set type and associated functionality.
 package set
 
-type emptyStruct struct{}
+import (
+	"iter"
+	"maps"
+)
+
+type emptyStruct = struct{}
 
 // Set is a collection of items with no duplicates, i.e. no two items compare equal to each other.
 type Set[T comparable] interface {
@@ -43,8 +48,14 @@ type Set[T comparable] interface {
 	// value of the type stored in the set.
 	Pop() (T, bool)
 
-	// ToSlice returns a slice containing all the items in the Set.
+	// Seq is an iterator over the items in the set.
+	Seq() iter.Seq[T]
+
+	// ToSlice returns a slice containing all the items in the set.
 	ToSlice() []T
+
+	// Update adds to the set all items from all the provided sets.
+	Update(others ...Set[T])
 
 	// TODO: Consider adding these operations to the Set API:
 	/*
@@ -136,12 +147,24 @@ func (s mapSet[T]) Pop() (T, bool) {
 	return tZero, false
 }
 
+func (s mapSet[T]) Seq() iter.Seq[T] {
+	return maps.Keys(s)
+}
+
 func (s mapSet[T]) ToSlice() []T {
 	items := make([]T, 0, len(s))
 	for item := range s {
 		items = append(items, item)
 	}
 	return items
+}
+
+func (s mapSet[T]) Update(others ...Set[T]) {
+	for _, other := range others {
+		for item := range other.Seq() {
+			s.Add(item)
+		}
+	}
 }
 
 // New returns a new Set backed by Go's native [map].

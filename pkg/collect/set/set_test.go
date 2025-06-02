@@ -548,3 +548,105 @@ func TestToSlice(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdate(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		set       Set[string]
+		toAdd     []Set[string]
+		wantItems []string
+	}{
+		{
+			name:      "empty_update_none",
+			set:       New[string](),
+			toAdd:     []Set[string]{},
+			wantItems: []string{},
+		},
+		{
+			name:      "empty_update_empty",
+			set:       New[string](),
+			toAdd:     []Set[string]{New[string]()},
+			wantItems: []string{},
+		},
+		{
+			name: "empty_update_one",
+			set:  New[string](),
+			toAdd: []Set[string]{
+				New("a", "b", "c"),
+			},
+			wantItems: []string{"a", "b", "c"},
+		},
+		{
+			name: "empty_update_multi",
+			set:  New[string](),
+			toAdd: []Set[string]{
+				New(allLetters[0:13]...),
+				New(allLetters[13:]...),
+			},
+			wantItems: allLetters,
+		},
+		{
+			name: "empty_update_multi_with_duplicates",
+			set:  New[string](),
+			toAdd: []Set[string]{
+				New(allLetters[0:13]...),
+				New(allLetters[13:]...),
+				New(allLetters...),
+			},
+			wantItems: allLetters,
+		},
+		{
+			name:      "nonempty_update_none",
+			set:       New("a"),
+			toAdd:     []Set[string]{},
+			wantItems: []string{"a"},
+		},
+		{
+			name:      "nonempty_update_empty",
+			set:       New("a"),
+			toAdd:     []Set[string]{New[string]()},
+			wantItems: []string{"a"},
+		},
+		{
+			name: "nonempty_update_one",
+			set:  New("a"),
+			toAdd: []Set[string]{
+				New("b", "c"),
+			},
+			wantItems: []string{"a", "b", "c"},
+		},
+		{
+			name: "nonempty_update_multi",
+			set:  New("a"),
+			toAdd: []Set[string]{
+				New(allLetters[1:13]...),
+				New(allLetters[13:]...),
+			},
+			wantItems: allLetters,
+		},
+		{
+			name: "nonempty_update_multi_with_duplicates",
+			set:  New[string]("a"),
+			toAdd: []Set[string]{
+				New(allLetters[0:13]...),
+				New(allLetters[13:]...),
+				New(allLetters...),
+			},
+			wantItems: allLetters,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tc.set.Update(tc.toAdd...)
+			gotItems := tc.set.ToSlice()
+			slices.Sort(gotItems)
+
+			if !reflect.DeepEqual(gotItems, tc.wantItems) {
+				t.Fatalf("Did not get expected set of items after Update();\n- got:\n%#v\n- want:\n%#v\n", gotItems, tc.wantItems)
+			}
+		})
+	}
+}
