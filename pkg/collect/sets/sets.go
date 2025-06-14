@@ -1,4 +1,4 @@
-package hashset
+package sets
 
 import (
 	"iter"
@@ -9,17 +9,14 @@ type Iterable[T comparable] interface {
 	Iter() iter.Seq[T]
 }
 
-// A set is a collection of items with no duplicates, i.e. no two items compare equal to each other.
-//
-// TODO: If/when adding other types of sets, export this and make sure the other set types implement
-// this interface.
-type set[T comparable] interface {
+// A Set is a collection of items with no duplicates, i.e. no two items compare equal to each other.
+type Set[T comparable] interface {
 	Add(items ...T)
 	AddIfAbsent(item T) bool
 	Clear()
 	Delete(items ...T)
 	DeleteIfPresent(item T) bool
-	Equal(other set[T]) bool
+	Equal(other Set[T]) bool
 	Has(item T) bool
 	HasAll(item ...T) bool
 	IsEmpty() bool

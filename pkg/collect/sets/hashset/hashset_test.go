@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/mhoug89/hogo/pkg/collect/sets"
 )
 
 var (
@@ -555,7 +557,7 @@ func TestUpdate(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		set       HashSet[string]
-		toAdd     []Iterable[string]
+		toAdd     []sets.Iterable[string]
 		wantItems []string
 	}{
 		{
@@ -567,13 +569,13 @@ func TestUpdate(t *testing.T) {
 		{
 			name:      "empty_update_empty",
 			set:       New[string](),
-			toAdd:     []Iterable[string]{New[string]()},
+			toAdd:     []sets.Iterable[string]{New[string]()},
 			wantItems: []string{},
 		},
 		{
 			name: "empty_update_one",
 			set:  New[string](),
-			toAdd: []Iterable[string]{
+			toAdd: []sets.Iterable[string]{
 				New("a", "b", "c"),
 			},
 			wantItems: []string{"a", "b", "c"},
@@ -581,7 +583,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "empty_update_multi",
 			set:  New[string](),
-			toAdd: []Iterable[string]{
+			toAdd: []sets.Iterable[string]{
 				New(allLetters[0:13]...),
 				New(allLetters[13:]...),
 			},
@@ -590,7 +592,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "empty_update_multi_with_duplicates",
 			set:  New[string](),
-			toAdd: []Iterable[string]{
+			toAdd: []sets.Iterable[string]{
 				New(allLetters[0:13]...),
 				New(allLetters[13:]...),
 				New(allLetters...),
@@ -600,19 +602,19 @@ func TestUpdate(t *testing.T) {
 		{
 			name:      "nonempty_update_none",
 			set:       New("a"),
-			toAdd:     []Iterable[string]{},
+			toAdd:     []sets.Iterable[string]{},
 			wantItems: []string{"a"},
 		},
 		{
 			name:      "nonempty_update_empty",
 			set:       New("a"),
-			toAdd:     []Iterable[string]{New[string]()},
+			toAdd:     []sets.Iterable[string]{New[string]()},
 			wantItems: []string{"a"},
 		},
 		{
 			name: "nonempty_update_one",
 			set:  New("a"),
-			toAdd: []Iterable[string]{
+			toAdd: []sets.Iterable[string]{
 				New("b", "c"),
 			},
 			wantItems: []string{"a", "b", "c"},
@@ -620,7 +622,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "nonempty_update_multi",
 			set:  New("a"),
-			toAdd: []Iterable[string]{
+			toAdd: []sets.Iterable[string]{
 				New(allLetters[1:13]...),
 				New(allLetters[13:]...),
 			},
@@ -629,7 +631,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "nonempty_update_multi_with_duplicates",
 			set:  New("a"),
-			toAdd: []Iterable[string]{
+			toAdd: []sets.Iterable[string]{
 				New(allLetters[0:13]...),
 				New(allLetters[13:]...),
 				New(allLetters...),

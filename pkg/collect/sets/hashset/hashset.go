@@ -4,6 +4,8 @@ package hashset
 import (
 	"iter"
 	"maps"
+
+	"github.com/mhoug89/hogo/pkg/collect/sets"
 )
 
 type emptyStruct = struct{}
@@ -19,7 +21,7 @@ func New[T comparable](items ...T) HashSet[T] {
 type HashSet[T comparable] map[T]emptyStruct
 
 // Verify interface compliance:
-var _ set[string] = (HashSet[string])(nil)
+var _ sets.Set[string] = (HashSet[string])(nil)
 
 // Add adds the provided items to the set.
 func (s HashSet[T]) Add(items ...T) {
@@ -62,7 +64,7 @@ func (s HashSet[T]) DeleteIfPresent(item T) bool {
 
 // Equal returns whether two sets contain the same items. This is true iff the sets are the same
 // length and every item in one set is found via Has in the other set.
-func (s HashSet[T]) Equal(other set[T]) bool {
+func (s HashSet[T]) Equal(other sets.Set[T]) bool {
 	if s.Len() != other.Len() {
 		return false
 	}
@@ -127,7 +129,7 @@ func (s HashSet[T]) ToSlice() []T {
 }
 
 // Update adds to the set all items from all the provided sets.
-func (s HashSet[T]) Update(others ...Iterable[T]) {
+func (s HashSet[T]) Update(others ...sets.Iterable[T]) {
 	for _, other := range others {
 		for item := range other.Iter() {
 			s.Add(item)
