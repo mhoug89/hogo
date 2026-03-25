@@ -37,10 +37,11 @@ func (c *cancelOnFailure) Cancel(err error) {
 // restricted to the provided limit. When the limit is reached, attempting to run a new goroutine
 // will block until the number of running goroutines drops below the max.
 //
-// If the [WithContinueOnFailure] option is provided, a derived context is created and used to
+// If the [WithCancelOnFailure] option is provided, a derived context is created and used to
 // manage cancellation of the Runner's tasks. Upon receiving the first non-nil error from a task:
 //   - The context is canceled, using the first encountered error as the cancellation reason.
-//   - The Runner will avoid running tasks in subsequent calls to [Runner.Go].
+//   - The Runner will avoid running tasks in subsequent calls to [Runner.Go]. Note that this
+//     does not apply to goroutines that are already running.
 type Runner struct {
 	ctx          context.Context
 	failCanceler cancelOnFailure
