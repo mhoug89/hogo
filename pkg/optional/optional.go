@@ -13,13 +13,9 @@ package optional
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"reflect"
 )
-
-// ErrNotSet is returned when calling [Optional.Get] on an empty Optional.
-var ErrNotSet = errors.New("optional value not set")
 
 // Optional may hold a value of type T. To check whether an Optional has been populated, the
 // [IsSet] and [IsEmpty] methods may be used.
@@ -119,11 +115,11 @@ func (o *Optional[T]) OrElseMustLazy(callback func() T) T {
 //   - They are both set and their underlying values are equal as determined by [reflect.DeepEqual].
 func (o *Optional[T]) Equal(o2 any) bool {
 	var other *Optional[T]
-	switch o2.(type) {
+	switch v := o2.(type) {
 	case *Optional[T]:
-		other = o2.(*Optional[T])
+		other = v
 	case Optional[T]:
-		other = ptrTo(o2.(Optional[T]))
+		other = &v
 	default:
 		return false
 	}
@@ -167,3 +163,4 @@ func (o *Optional[T]) UnmarshalJSON(data []byte) error {
 func ptrTo[T any](t T) *T {
 	return &t
 }
+

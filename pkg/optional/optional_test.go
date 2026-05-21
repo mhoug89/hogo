@@ -3,6 +3,9 @@ package optional
 import (
 	"errors"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 func TestOfViaGet(t *testing.T) {
@@ -54,7 +57,7 @@ func TestSetViaGet(t *testing.T) {
 		},
 		{
 			name: "set_on_nonempty_same_value",
-			opt:  Of[int](1),
+			opt:  Of(1),
 			setter: func(o *Optional[int]) {
 				o.Set(1)
 			},
@@ -62,7 +65,7 @@ func TestSetViaGet(t *testing.T) {
 		},
 		{
 			name: "set_on_nonempty_different_value",
-			opt:  Of[int](9001),
+			opt:  Of(9001),
 			setter: func(o *Optional[int]) {
 				o.Set(1)
 			},
@@ -82,6 +85,30 @@ func TestSetViaGet(t *testing.T) {
 				t.Errorf("Get() got %v, want: %v", got, tc.wantValue)
 			}
 		})
+	}
+}
+
+func TestGetEmpty(t *testing.T) {
+	t.Parallel()
+
+	type ZeroValueTestStruct struct {
+		String string
+		Int    int
+	}
+
+	type RetVal struct {
+		Value ZeroValueTestStruct
+		Err   error
+	}
+
+	opt := Empty[ZeroValueTestStruct]()
+	got := RetVal{}
+	got.Value, got.Err = opt.Get()
+
+	want := RetVal{Value: ZeroValueTestStruct{}, Err: ErrNotSet}
+
+	if diff := cmp.Diff(want, got, cmpopts.EquateErrors()); diff != "" {
+		t.Errorf("Get() mismatch for empty optional (-want +got):\n%s", diff)
 	}
 }
 
@@ -105,7 +132,7 @@ func TestEmptinessFuncs(t *testing.T) {
 		{
 			name: "of_zero_value",
 			opt: func() *Optional[int] {
-				o := Of[int](0)
+				o := Of(0)
 				return &o
 			},
 			wantIsSet: true,
@@ -122,7 +149,7 @@ func TestEmptinessFuncs(t *testing.T) {
 		{
 			name: "of_nonzero_value",
 			opt: func() *Optional[int] {
-				o := Of[int](10)
+				o := Of(10)
 				return &o
 			},
 			wantIsSet: true,
@@ -156,19 +183,18 @@ func TestMustGet_OK(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		opt        Optional[int]
-		wantValue  int
-		shouldFail bool
+		name      string
+		opt       Optional[int]
+		wantValue int
 	}{
 		{
 			name:      "of_zero_value",
-			opt:       Of[int](0),
+			opt:       Of(0),
 			wantValue: 0,
 		},
 		{
 			name:      "of_nonzero_value",
-			opt:       Of[int](10),
+			opt:       Of(10),
 			wantValue: 10,
 		},
 	}
@@ -213,7 +239,7 @@ func TestOrElse(t *testing.T) {
 		},
 		{
 			name:      "populated",
-			opt:       Of[int](100),
+			opt:       Of(100),
 			wantValue: 100,
 		},
 	}
@@ -222,7 +248,7 @@ func TestOrElse(t *testing.T) {
 			t.Parallel()
 
 			if got := tc.opt.OrElse(defaultValue); got != tc.wantValue {
-				t.Fatalf("MustGet() got %v, want: %v", got, tc.wantValue)
+				t.Fatalf("OrElse(%v) got %v, want: %v", defaultValue, got, tc.wantValue)
 			}
 		})
 	}
@@ -237,18 +263,22 @@ func TestOrElseLazy(t *testing.T) {
 	}
 	errFailedCallback := errors.New("oops, callback failed")
 
+	type RetVal struct {
+		Value int
+		Err   error
+	}
+
 	tests := []struct {
-		name      string
-		opt       Optional[int]
-		callback  func() (int, error)
-		wantValue int
-		wantErr   error
+		name     string
+		opt      Optional[int]
+		callback func() (int, error)
+		want     RetVal
 	}{
 		{
-			name:      "empty_and_callback_ok",
-			opt:       Empty[int](),
-			callback:  defaultValueCallback,
-			wantValue: defaultValue,
+			name:     "empty_and_callback_ok",
+			opt:      Empty[int](),
+			callback: defaultValueCallback,
+			want:     RetVal{Value: 3},
 		},
 		{
 			name: "empty_and_callback_fail",
@@ -256,28 +286,24 @@ func TestOrElseLazy(t *testing.T) {
 			callback: func() (int, error) {
 				return 0, errFailedCallback
 			},
-			wantErr: errFailedCallback,
+			want: RetVal{Err: errFailedCallback},
 		},
 		{
-			name:      "populated",
-			opt:       Of[int](100),
-			callback:  defaultValueCallback,
-			wantValue: 100,
+			name:     "populated",
+			opt:      Of(100),
+			callback: defaultValueCallback,
+			want:     RetVal{Value: 100},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotVal, gotErr := tc.opt.OrElseLazy(tc.callback)
-			if tc.wantErr != nil {
-				if tc.wantErr != gotErr {
-					t.Fatalf("OrElseLazy() error mismatch; got %v, want %v", gotErr, tc.wantErr)
-				}
-			} else {
-				if gotVal != tc.wantValue {
-					t.Fatalf("OrElseLazy() got %v, want: %v", gotVal, tc.wantValue)
-				}
+			got := RetVal{}
+			got.Value, got.Err = tc.opt.OrElseLazy(tc.callback)
+
+			if diff := cmp.Diff(tc.want, got, cmpopts.EquateErrors()); diff != "" {
+				t.Errorf("OrElseLazy() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -305,7 +331,7 @@ func TestOrElseMustLazy(t *testing.T) {
 		},
 		{
 			name:      "populated",
-			opt:       Of[int](100),
+			opt:       Of(100),
 			callback:  defaultValueCallback,
 			wantValue: 100,
 		},
@@ -332,45 +358,63 @@ func TestEqual(t *testing.T) {
 		want bool
 	}{
 		{
-			name: "compare_to_arg_not_an_optional",
-			o1:   Of[int](1),
+			name: "compare_to_arg_that_is_not_an_optional_returns_false",
+			o1:   Of(1),
 			o2:   map[string]string{},
 			want: false,
 		},
 		{
-			name: "compare_to_optional_of_different_type",
-			o1:   Of[int](1),
-			o2:   Of[string]("abc"),
+			name: "compare_to_optional_of_different_type_FALSE",
+			o1:   Of(1),
+			o2:   Of("abc"),
 			want: false,
 		},
 		{
-			name: "both_empty",
+			name: "both_empty_TRUE",
 			o1:   Empty[int](),
 			o2:   Empty[int](),
 			want: true,
 		},
 		{
-			name: "o1_empty",
+			name: "both_empty_o2_is_ptr_TRUE",
 			o1:   Empty[int](),
-			o2:   Of[int](1),
+			o2:   ptrTo(Empty[int]()),
+			want: true,
+		},
+		{
+			name: "o1_empty_o2_nonempty_FALSE",
+			o1:   Empty[int](),
+			o2:   Of(1),
 			want: false,
 		},
 		{
-			name: "o2_empty",
-			o1:   Of[int](1),
+			name: "o1_nonempty_o2_empty_FALSE",
+			o1:   Of(1),
 			o2:   Empty[int](),
 			want: false,
 		},
 		{
-			name: "both_set_different_values",
-			o1:   Of[int](1),
-			o2:   Of[int](2),
+			name: "both_set_but_contain_different_values_FALSE",
+			o1:   Of(1),
+			o2:   Of(2),
 			want: false,
 		},
 		{
-			name: "both_set_same_value",
-			o1:   Of[int](2),
-			o2:   Of[int](2),
+			name: "both_set_but_contain_different_values_o2_is_ptr_FALSE",
+			o1:   Of(1),
+			o2:   ptrTo(Of(2)),
+			want: false,
+		},
+		{
+			name: "both_set_same_value_TRUE",
+			o1:   Of(2),
+			o2:   Of(2),
+			want: true,
+		},
+		{
+			name: "both_set_same_value_o2_is_ptr_TRUE",
+			o1:   Of(2),
+			o2:   ptrTo(Of(2)),
 			want: true,
 		},
 	}
@@ -405,12 +449,12 @@ func TestString(t *testing.T) {
 		},
 		{
 			name: "of_int",
-			opt:  ptrTo(Of[string]("abc")),
+			opt:  ptrTo(Of("abc")),
 			want: "abc",
 		},
 		{
 			name: "of_string",
-			opt:  ptrTo(Of[string]("abc")),
+			opt:  ptrTo(Of("abc")),
 			want: "abc",
 		},
 	}
@@ -429,47 +473,48 @@ func TestString(t *testing.T) {
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
 
+	type RetVal struct {
+		Value string
+		Err   error
+	}
+
 	tests := []struct {
-		name    string
-		opt     Optional[any]
-		wantVal string
-		wantErr error
+		name string
+		opt  Optional[any]
+		want RetVal
 	}{
 		{
-			name:    "empty",
-			opt:     Empty[any](),
-			wantVal: `null`,
+			name: "empty",
+			opt:  Empty[any](),
+			want: RetVal{Value: `null`},
 		},
 		{
-			name:    "of_int",
-			opt:     Of[any](1),
-			wantVal: `1`,
+			name: "of_int",
+			opt:  Of[any](1),
+			want: RetVal{Value: `1`},
 		},
 		{
-			name:    "of_string",
-			opt:     Of[any]("abc"),
-			wantVal: `"abc"`,
+			name: "of_string",
+			opt:  Of[any]("abc"),
+			want: RetVal{Value: `"abc"`},
 		},
 		{
-			name:    "of_string_ptr",
-			opt:     Of[any](ptrTo("abc")),
-			wantVal: `"abc"`,
+			name: "of_string_ptr",
+			opt:  Of[any](ptrTo("abc")),
+			want: RetVal{Value: `"abc"`},
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotBytes, gotErr := tc.opt.MarshalJSON()
-			if tc.wantErr != nil {
-				if gotErr != tc.wantErr {
-					t.Fatalf("MarshalJSON() error mismatch; got %v, want %v", gotErr, tc.wantErr)
-				}
-			} else {
-				gotVal := string(gotBytes)
-				if gotVal != tc.wantVal {
-					t.Fatalf("MarshalJSON() got %q, want: %q", gotVal, tc.wantVal)
-				}
+			got := RetVal{}
+			var gotBytes []byte
+			gotBytes, got.Err = tc.opt.MarshalJSON()
+			got.Value = string(gotBytes)
+
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("MarshalJSON() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
