@@ -29,13 +29,29 @@ func (m *Map[K, V]) Clear() {
 	m.rwLock.Lock()
 	defer m.rwLock.Unlock()
 
-	// Since the underlying map is not exported and thus nothing should be keeping a reference to
-	// it, we can just make a new one and let the old one get garbage collected.
-	m.valueByKey = make(map[K]V)
+	m.clearWithoutLocking()
 }
 
-// Count returns the number of items in the underlying map.
-func (m *Map[K, V]) Count() int {
+// ClearWithCleanup performs the provided cleanup function on each item in the map, then clears the
+// underlying map by creating a new one. It accumulates the errors from each cleanup function call
+// using [errors.Join] and returns the result.
+func (m *Map[K, V]) ClearWithCleanup(cleanupFn func(k K, v V) error) error {
+	m.rwLock.Lock()
+	defer m.rwLock.Unlock()
+
+	var errs []error
+	for k, v := range m.valueByKey {
+		if err := cleanupFn(k, v); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	m.clearWithoutLocking()
+
+	return errors.Join(errs...)
+}
+
+// Len returns the number of items in the underlying map.
+func (m *Map[K, V]) Len() int {
 	m.rwLock.RLock()
 	defer m.rwLock.RUnlock()
 
@@ -50,6 +66,25 @@ func (m *Map[K, V]) Delete(keys ...K) {
 	for _, k := range keys {
 		delete(m.valueByKey, k)
 	}
+}
+
+// DeleteWithCleanup calls the provided cleanup function on the item at the provided key, then
+// deletes the item at the provided key from the underlying map; it repeats this for each provided
+// key. It accumulates the errors from each cleanup function call using [errors.Join] and returns
+// the result.
+func (m *Map[K, V]) DeleteWithCleanup(cleanupFn func(k K, v V) error, keys ...K) error {
+	m.rwLock.Lock()
+	defer m.rwLock.Unlock()
+
+	var errs []error
+	for _, k := range keys {
+		if err := cleanupFn(k, m.valueByKey[k]); err != nil {
+			errs = append(errs, err)
+		}
+		delete(m.valueByKey, k)
+	}
+
+	return errors.Join(errs...)
 }
 
 // Load returns the value associated with the provided key from the underlying map. If the key
@@ -134,5 +169,11 @@ func (m *Map[K, V]) Update(key K, updater func(V) (V, error)) error {
 	}
 	m.valueByKey[key] = gotVal
 	return nil
+}
+
+func (m *Map[K, V]) clearWithoutLocking() {
+	// Since the underlying map is not exported and thus nothing should be keeping a reference to
+	// it, we can just make a new one and let the old one get garbage collected.
+	m.valueByKey = make(map[K]V)
 }
 

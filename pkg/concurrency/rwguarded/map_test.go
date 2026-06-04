@@ -2,6 +2,7 @@ package rwguarded
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 	"strings"
 	"sync"
@@ -79,42 +80,42 @@ func TestMapDelete(t *testing.T) {
 	}
 }
 
-func TestMapCountViaStoreDeleteAndClear(t *testing.T) {
+func TestMapLenViaStoreDeleteAndClear(t *testing.T) {
 	t.Parallel()
 
 	rwgMap := NewMap[string, string]()
 	var got, want int
-	got, want = rwgMap.Count(), 0
+	got, want = rwgMap.Len(), 0
 	if got != want {
-		t.Fatalf("Count() got %d, want %d", got, want)
+		t.Fatalf("Len() got %d, want %d", got, want)
 	}
 
 	k1, k2, k3 := "k1", "k2", "k3"
 	v1, v2, v3 := "v1", "v2", "v3"
 
 	rwgMap.Store(k1, v1)
-	got, want = rwgMap.Count(), 1
+	got, want = rwgMap.Len(), 1
 	if got != want {
-		t.Fatalf("Count() got %d, want %d", got, want)
+		t.Fatalf("Len() got %d, want %d", got, want)
 	}
 
 	rwgMap.Store(k2, v2)
 	rwgMap.Store(k3, v3)
-	got, want = rwgMap.Count(), 3
+	got, want = rwgMap.Len(), 3
 	if got != want {
-		t.Fatalf("After Store(), Count() got %d, want %d", got, want)
+		t.Fatalf("After Store(), Len() got %d, want %d", got, want)
 	}
 
 	rwgMap.Delete(k1)
-	got, want = rwgMap.Count(), 2
+	got, want = rwgMap.Len(), 2
 	if got != want {
-		t.Fatalf("After Delete(), Count() got %d, want %d", got, want)
+		t.Fatalf("After Delete(), Len() got %d, want %d", got, want)
 	}
 
 	rwgMap.Clear()
-	got, want = rwgMap.Count(), 0
+	got, want = rwgMap.Len(), 0
 	if got != want {
-		t.Fatalf("After Clear(), Count() got %d, want %d", got, want)
+		t.Fatalf("After Clear(), Len() got %d, want %d", got, want)
 	}
 }
 
@@ -126,54 +127,97 @@ func TestMapConcurrentOpsNoPanic(t *testing.T) {
 		value string
 	}
 
+	type ItemOpPair struct {
+		item MapItem
+		op   func(m *Map[string, string], item MapItem)
+	}
+
 	// One item for each operation
-	items := []MapItem{
+	itemOpPairs := []ItemOpPair{
 		{
-			key:   "Clear",
-			value: "Clear()",
+			item: MapItem{
+				key:   "Clear",
+				value: "Clear()",
+			},
+			op: func(m *Map[string, string], _ MapItem) {
+				m.Clear()
+			},
 		},
 		{
-			key:   "Count",
-			value: "Count()",
+			item: MapItem{
+				key:   "ClearWithCleanup",
+				value: "ClearWithCleanup()",
+			},
+			op: func(m *Map[string, string], _ MapItem) {
+				cleanupFn := func(_ string, _ string) error {
+					return nil
+				}
+				_ = m.ClearWithCleanup(cleanupFn)
+			},
 		},
 		{
-			key:   "Delete",
-			value: "Delete()",
+			item: MapItem{
+				key:   "Delete",
+				value: "Delete()",
+			},
+			op: func(m *Map[string, string], item MapItem) {
+				m.Delete(item.key)
+			},
 		},
 		{
-			key:   "Load",
-			value: "Load()",
+			item: MapItem{
+				key:   "DeleteWithCleanup",
+				value: "DeleteWithCleanup()",
+			},
+			op: func(m *Map[string, string], item MapItem) {
+				cleanupFn := func(_ string, _ string) error {
+					return nil
+				}
+				_ = m.DeleteWithCleanup(cleanupFn, item.key)
+			},
 		},
 		{
-			key:   "Store",
-			value: "Store()",
+			item: MapItem{
+				key:   "Len",
+				value: "Len()",
+			},
+			op: func(m *Map[string, string], _ MapItem) {
+				_ = m.Len()
+			},
+		},
+		{
+			item: MapItem{
+				key:   "Load",
+				value: "Load()",
+			},
+			op: func(m *Map[string, string], item MapItem) {
+				_, _ = m.Load(item.key)
+			},
+		},
+		{
+			item: MapItem{
+				key:   "Store",
+				value: "Store()",
+			},
+			op: func(m *Map[string, string], item MapItem) {
+				m.Store(item.key, item.value)
+			},
+		},
+		{
+			item: MapItem{
+				key:   "Update",
+				value: "Update()",
+			},
+			op: func(m *Map[string, string], item MapItem) {
+				updateFn := func(v string) (string, error) {
+					return strings.ToUpper(item.value), nil
+				}
+				_ = m.Update(item.key, updateFn)
+			},
 		},
 	}
 
 	rwgMap := NewMap[string, string]()
-	ops := []func(item MapItem){
-		func(item MapItem) {
-			rwgMap.Store(item.key, item.value)
-		},
-		func(item MapItem) {
-			_, _ = rwgMap.Load(item.key)
-		},
-		func(_ MapItem) {
-			rwgMap.Clear()
-		},
-		func(_ MapItem) {
-			_ = rwgMap.Count()
-		},
-		func(item MapItem) {
-			rwgMap.Delete(item.key)
-		},
-		func(item MapItem) {
-			_ = rwgMap.Update(item.key, func(v string) (string, error) {
-				return strings.ToUpper(item.value), nil
-			})
-		},
-	}
-
 	randGenSrc := rand.NewSource(time.Now().UnixNano())
 	randGen := rand.New(randGenSrc)
 	// Check that doing concurrent operations, both on the same and different keys, doesn't cause a
@@ -182,15 +226,13 @@ func TestMapConcurrentOpsNoPanic(t *testing.T) {
 	// Because each operation is simple and likely to finish quickly, we do each op several times
 	// for each item to make it more likely that the goroutines will run concurrently.
 	iterationsPerItem := 10000
-	for _, item := range items {
-		wg.Add(1)
-		go func() {
+	for range itemOpPairs {
+		wg.Go(func() {
 			for range iterationsPerItem {
-				randIndex := randGen.Intn(len(ops))
-				ops[randIndex](item)
+				randomPair := ptrTo(itemOpPairs[randGen.Intn(len(itemOpPairs))])
+				randomPair.op(rwgMap, randomPair.item)
 			}
-			wg.Done()
-		}()
+		})
 	}
 	wg.Wait()
 }
@@ -226,10 +268,10 @@ func TestMapNestedStoreIfAbsentCallsDoesNotDeadlock_SameKey(t *testing.T) {
 	if !innerAdded {
 		t.Errorf("Inner StoreIfAbsent() did not add item, but should have")
 	}
-	gotCount := rwgMap.Count()
-	wantCount := 1
-	if gotCount != wantCount {
-		t.Errorf("Count() got %d, want %d", gotCount, wantCount)
+	gotLen := rwgMap.Len()
+	wantLen := 1
+	if gotLen != wantLen {
+		t.Errorf("Len() got %d, want %d", gotLen, wantLen)
 	}
 	if got, ok := rwgMap.Load(key); !ok || got != value {
 		t.Errorf("Load(%q) got %v, want %v", key, got, value)
@@ -268,10 +310,10 @@ func TestMapNestedStoreIfAbsentCallsDoesNotDeadlock_DistinctKeys(t *testing.T) {
 	if !innerAdded {
 		t.Errorf("Inner StoreIfAbsent() did not add item, but should have")
 	}
-	gotCount := rwgMap.Count()
-	wantCount := 2
-	if gotCount != wantCount {
-		t.Errorf("Count() got %d, want %d", gotCount, wantCount)
+	gotLen := rwgMap.Len()
+	wantLen := 2
+	if gotLen != wantLen {
+		t.Errorf("Len() got %d, want %d", gotLen, wantLen)
 	}
 	if got, ok := rwgMap.Load(outerKey); !ok || got != outerValue {
 		t.Errorf("Load(%q) got value %v, want %v", outerKey, got, outerValue)
@@ -355,6 +397,87 @@ func TestMapUpdateError(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMapClearWithCleanup(t *testing.T) {
+	t.Parallel()
+
+	type Item struct {
+		UID       string
+		CleanedUp bool
+	}
+
+	rwgMap := NewMap[string, *Item]()
+	items := []*Item{
+		ptrTo(Item{UID: "item1"}),
+		ptrTo(Item{UID: "item2"}),
+		ptrTo(Item{UID: "item3"}),
+	}
+	for _, item := range items {
+		rwgMap.Store(item.UID, item)
+	}
+
+	err := rwgMap.ClearWithCleanup(func(k string, v *Item) error {
+		v.CleanedUp = true
+		return fmt.Errorf("err from uid %s", v.UID)
+	})
+
+	// Check that the map is now empty.
+	if rwgMap.Len() != 0 {
+		t.Errorf("Len() = %d, want 0", rwgMap.Len())
+	}
+
+	// Check that a non-nil error was returned.
+	if err == nil {
+		t.Fatalf("ClearWithCleanup() = nil; failed to return cleanup errors")
+	}
+
+	for _, item := range items {
+		// Check that each item's cleanup function was called.
+		if !item.CleanedUp {
+			t.Errorf("item %q was not cleaned up", item.UID)
+		}
+		// Check that each item's cleanup error message was present in the wrapped error.
+		wantMsg := fmt.Sprintf("err from uid %s", item.UID)
+		if !strings.Contains(err.Error(), wantMsg) {
+			t.Errorf("ClearWithCleanup did not include error from item %q:\nGot: %s\nWant: %s", item.UID, err.Error(), wantMsg)
+		}
+	}
+}
+
+func TestMapDeleteWithCleanup(t *testing.T) {
+	t.Parallel()
+
+	type Item struct {
+		UID       string
+		CleanedUp bool
+	}
+
+	rwgMap := NewMap[string, *Item]()
+	item := &Item{UID: "item1"}
+	rwgMap.Store(item.UID, item)
+
+	cleanupFn := func(k string, v *Item) error {
+		v.CleanedUp = true
+		return fmt.Errorf("err from uid %s", v.UID)
+	}
+	err := rwgMap.DeleteWithCleanup(cleanupFn, item.UID)
+
+	// Check that a non-nil error was returned.
+	if err == nil {
+		t.Fatalf("DeleteWithCleanup() = nil; failed to return cleanup error")
+	}
+
+	// Check that the item's cleanup function was called.
+	if !item.CleanedUp {
+		t.Errorf("item %q was not cleaned up", item.UID)
+	}
+
+	// Check that the item's cleanup error message was present in the wrapped error.
+	wantMsg := fmt.Sprintf("err from uid %s", item.UID)
+	if !strings.Contains(err.Error(), wantMsg) {
+		t.Errorf("DeleteWithCleanup did not include error from item %q:\nGot: %s\nWant: %s", item.UID, err.Error(), wantMsg)
 	}
 }
 

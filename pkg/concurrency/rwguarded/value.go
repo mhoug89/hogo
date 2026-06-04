@@ -38,16 +38,20 @@ func (g *RWGuarded[V]) Set(val V) {
 	g.value = val
 }
 
-// Update allows performing a read-modify-write transaction on the underlying value while holding
-// the writer lock. The updater function is passed a pointer to the underlying value, which it may
-// change in place. The error value returned from the updater is returned from this method.
+// LockedDo allows performing an operation using the underlying value while holding the writer lock.
+// The provided function is passed a pointer to the underlying value. Some use cases for using
+// LockedDo might include:
+//   - Calling a method on the underlying object
+//   - Modifying the underlying object in-place
 //
-// The updater should not call any other method of this [RWGuarded], as this will result in a
-// deadlock.
-func (g *RWGuarded[V]) Update(updater func(*V) error) error {
+// This function returns the error returned from the provided function.
+//
+// The provided function should NOT call any other method of this RWGuarded, as this will result in
+// a deadlock.
+func (g *RWGuarded[V]) LockedDo(fn func(*V) error) error {
 	g.rwLock.Lock()
 	defer g.rwLock.Unlock()
 
-	return updater(&g.value)
+	return fn(&g.value)
 }
 

@@ -55,7 +55,7 @@ func TestValueConcurrentOpsNoPanic(t *testing.T) {
 		{
 			name: "Update",
 			do: func() {
-				rwgVal.Update(func(val *string) error {
+				_ = rwgVal.LockedDo(func(val *string) error {
 					*val = "updated-value"
 					return nil
 				})
@@ -122,7 +122,7 @@ func TestValueUpdate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			rwgVal := New[int](tc.origVal)
-			if err := rwgVal.Update(tc.updater); err != tc.wantErr {
+			if err := rwgVal.LockedDo(tc.updater); err != tc.wantErr {
 				t.Errorf("Update() got error %q, want error %q", err, tc.wantErr)
 			}
 			if gotVal := rwgVal.Get(); gotVal != tc.wantVal {
