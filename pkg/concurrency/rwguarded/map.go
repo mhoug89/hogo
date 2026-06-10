@@ -105,21 +105,63 @@ func (m *Map[K, V]) Store(key K, value V) {
 	m.valueByKey[key] = value
 }
 
-// StoreIfAbsent checks if the given key exists in the map, and if not, executes the given function
-// to obtain the value to store at that key. This method accepts a function that produces the
-// desired value so that it can skip the potentially expensive operation of creating the value if
-// the value should not be added to the map.
+type storeIfAbsentOptions struct {
+	UseWriteLockForValueCtor bool
+}
+
+// StoreIfAbsentOption is used to specify predefined options for [Map.StoreIfAbsent].
+type StoreIfAbsentOption func(opt *storeIfAbsentOptions)
+
+// UseWriteLockForValueCtor causes [Map.StoreIfAbsent] to obtain the underlying writer lock when calling
+// the value constructor, rather than the default approach of calling the value constructor without
+// any lock being held. It will still perform an initial read-locked check to avoid obtaining the
+// writer lock unless absolutely necessary. If no value exists at the provided key, it will obtain
+// the write lock, check for the value again, and if another thread has assigned a value at the
+// provided key between the read-locked check and now, it will not call the value constructor.
 //
-// Note that in scenarios where multiple routines are calling StoreIfAbsent in parallel for the same
-// key, it's possible for valueCtor to be called by all the routines, but only the first routine
-// that succeeds in obtaining the underlying writer lock will write its value to the map at the
-// given key; the other constructed values will be discarded.
+// This ensures that the value constructor for a provided key is only called once. This is useful
+// when the value being created requires cleanup, and it's unacceptable to call the constructor
+// multiple times but only keep a reference to one of the created values.
+//
+// WARNING: When using this option, the provided value constructor function must NOT call any other
+// methods of this Map, as they will fail to obtain the underlying lock and will deadlock.
+func UseWriteLockForValueCtor() StoreIfAbsentOption {
+	return func(opt *storeIfAbsentOptions) {
+		opt.UseWriteLockForValueCtor = true
+	}
+}
+
+// StoreIfAbsent checks if the provided key exists in the map, and if not, executes the provided
+// function to obtain the value to store at that key. This method accepts a function that produces
+// the desired value so that it can skip the potentially expensive operation of creating the value
+// if the value should not be added to the map.
+//
+// Note that by default, in scenarios where multiple routines are calling StoreIfAbsent in parallel
+// for the same key, it's possible for valueCtor to be called by all the routines, but only the
+// first routine that succeeds in obtaining the underlying writer lock will write its value to the
+// map at the provided key; the other constructed values will be discarded. To avoid this behavior
+// and ensure the value constructor for the provided key is only called once, specify the
+// [UseWriteLockForValueCtor] option.
 //
 // For the boolean return value, this method returns true if the value was successfully constructed
 // and added. Otherwise, it returns false, and the reason for not inserting the value can be
 // determined by the returned error - if nil, the key was already present in the map; if non-nil,
 // the key was not present, but the function to construct the new value returned an error.
-func (m *Map[K, V]) StoreIfAbsent(key K, valueCtor func() (*V, error)) (bool, error) {
+func (m *Map[K, V]) StoreIfAbsent(
+	key K,
+	valueCtor func() (*V, error),
+	opts ...StoreIfAbsentOption,
+) (bool, error) {
+	options := storeIfAbsentOptions{}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	// Use the writer lock variant if specified.
+	if options.UseWriteLockForValueCtor {
+		return m.storeIfAbsentWithWriteLockForValueCtor(key, valueCtor)
+	}
+
 	// Try checking with only a reader lock first, as this is less expensive than obtaining a writer
 	// lock when the key already exists.
 	m.rwLock.RLock()
@@ -175,5 +217,37 @@ func (m *Map[K, V]) clearWithoutLocking() {
 	// Since the underlying map is not exported and thus nothing should be keeping a reference to
 	// it, we can just make a new one and let the old one get garbage collected.
 	m.valueByKey = make(map[K]V)
+}
+
+// storeIfAbsentWithWriteLockForValueCtor is like [Map.StoreIfAbsent], but holds the writer lock
+// when calling the value constructor. See [UseWriteLockForValueCtor].
+func (m *Map[K, V]) storeIfAbsentWithWriteLockForValueCtor(
+	key K,
+	valueCtor func() (*V, error),
+) (bool, error) {
+	// Try checking with only a reader lock first, as this is less expensive than obtaining a writer
+	// lock when the key already exists.
+	m.rwLock.RLock()
+	if _, found := m.valueByKey[key]; found {
+		m.rwLock.RUnlock()
+		return false, nil
+	}
+	m.rwLock.RUnlock()
+
+	// If not found, obtain the writer lock, check again if the key exists (because another process
+	// could have set the value between when we released the reader lock and now), and if not, set
+	// the value.
+	m.rwLock.Lock()
+	defer m.rwLock.Unlock()
+	if _, found := m.valueByKey[key]; found {
+		return false, nil
+	}
+
+	valPtr, err := valueCtor()
+	if err != nil {
+		return false, err
+	}
+	m.valueByKey[key] = *valPtr
+	return true, nil
 }
 

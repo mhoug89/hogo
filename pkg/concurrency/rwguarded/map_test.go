@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -205,6 +206,31 @@ func TestMapConcurrentOpsNoPanic(t *testing.T) {
 		},
 		{
 			item: MapItem{
+				key:   "StoreIfAbsent",
+				value: "StoreIfAbsent()",
+			},
+			op: func(m *Map[string, string], item MapItem) {
+				_, _ = m.StoreIfAbsent(
+					item.key,
+					func() (*string, error) { return &item.value, nil },
+				)
+			},
+		},
+		{
+			item: MapItem{
+				key:   "StoreIfAbsent_UseWriteLockForValueCtor",
+				value: "StoreIfAbsent(key, ctor, UseWriteLockForValueCtor())",
+			},
+			op: func(m *Map[string, string], item MapItem) {
+				_, _ = m.StoreIfAbsent(
+					item.key,
+					func() (*string, error) { return &item.value, nil },
+					UseWriteLockForValueCtor(),
+				)
+			},
+		},
+		{
+			item: MapItem{
 				key:   "Update",
 				value: "Update()",
 			},
@@ -320,6 +346,49 @@ func TestMapNestedStoreIfAbsentCallsDoesNotDeadlock_DistinctKeys(t *testing.T) {
 	}
 	if got, ok := rwgMap.Load(innerKey); !ok || got != innerValue {
 		t.Errorf("Load(%q) got value %v, want %v", innerKey, got, innerValue)
+	}
+}
+
+func TestMapStoreIfAbsent_UseWriteLockForValueCtor_CtorOnlyCalledOnce(t *testing.T) {
+	rwgMap := NewMap[string, string]()
+
+	key := "key1"
+	wantValue := "filler-value"
+	v := atomic.Int32{}
+	valueCtor := func() (*string, error) {
+		v.Add(1)
+		return &wantValue, nil
+	}
+
+	gotErr := atomic.Bool{}
+	attemptsWithCtorNotCalled := atomic.Int32{}
+	wg := sync.WaitGroup{}
+	callCount := 1000
+	for range callCount {
+		wg.Go(func() {
+			added, err := rwgMap.StoreIfAbsent(key, valueCtor, UseWriteLockForValueCtor())
+			if !added {
+				attemptsWithCtorNotCalled.Add(1)
+			}
+			if err != nil {
+				gotErr.Store(true)
+			}
+		})
+	}
+	wg.Wait()
+
+	// Check that the constructor was only been called once and the value is correct.
+	if v.Load() != 1 {
+		t.Errorf("ctor was called %d times, want 1", v.Load())
+	}
+	if gotErr.Load() {
+		t.Errorf("got a non-nil error from one or more StoreIfAbsent calls")
+	}
+	if attemptsWithCtorNotCalled.Load() != int32(callCount-1) {
+		t.Errorf("the value ctor was reported as not called %d times, want %d", attemptsWithCtorNotCalled.Load(), callCount-1)
+	}
+	if got, ok := rwgMap.Load(key); !ok || got != wantValue {
+		t.Errorf("Load(%q) got %v, want %v", key, got, wantValue)
 	}
 }
 
