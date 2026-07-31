@@ -68,6 +68,41 @@ func (m *Map[K, V]) Delete(keys ...K) {
 	}
 }
 
+// DeleteIfMatchWithCleanup is like [Map.DeleteWithCleanup], but calls the provided matcher function
+// on each key-value pair, and only performs cleanup and deletion if the matcher returns true. If no
+// value is present at the provided key, this is treated as if the matcher returned false.
+//
+// This is useful for scenarios where many callers fetch the value at a provided key, discover it is
+// in a bad state (e.g., a client's connection to its remote host may have been broken), and race to
+// replace the value for a provided key. If the value should only be replaced once, the first
+// caller's matcher (which might, for example, compare the address of the pointer stored at the
+// provided key) would be the only one to return true, ensuring the value is only deleted and
+// cleaned up once.
+func (m *Map[K, V]) DeleteIfMatchWithCleanup(
+	matchFn func(k K, v V) bool,
+	cleanupFn func(k K, v V) error,
+	keys ...K,
+) (int, error) {
+	m.rwLock.Lock()
+	defer m.rwLock.Unlock()
+
+	deletedCount := 0
+	var errs []error
+	for _, k := range keys {
+		v, ok := m.valueByKey[k]
+		if !ok || !matchFn(k, v) {
+			continue
+		}
+		if err := cleanupFn(k, v); err != nil {
+			errs = append(errs, err)
+		}
+		delete(m.valueByKey, k)
+		deletedCount++
+	}
+
+	return deletedCount, errors.Join(errs...)
+}
+
 // DeleteWithCleanup calls the provided cleanup function on the item at the provided key, then
 // deletes the item at the provided key from the underlying map; it repeats this for each provided
 // key. It accumulates the errors from each cleanup function call using [errors.Join] and returns

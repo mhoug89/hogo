@@ -179,6 +179,21 @@ func TestMapConcurrentOpsNoPanic(t *testing.T) {
 		},
 		{
 			item: MapItem{
+				key:   "DeleteIfMatchWithCleanup",
+				value: "DeleteIfMatchWithCleanup()",
+			},
+			op: func(m *Map[string, string], item MapItem) {
+				matchFn := func(_ string, _ string) bool {
+					return true
+				}
+				cleanupFn := func(_ string, _ string) error {
+					return nil
+				}
+				_, _ = m.DeleteIfMatchWithCleanup(matchFn, cleanupFn, item.key)
+			},
+		},
+		{
+			item: MapItem{
 				key:   "Len",
 				value: "Len()",
 			},
@@ -547,6 +562,55 @@ func TestMapDeleteWithCleanup(t *testing.T) {
 	wantMsg := fmt.Sprintf("err from uid %s", item.UID)
 	if !strings.Contains(err.Error(), wantMsg) {
 		t.Errorf("DeleteWithCleanup did not include error from item %q:\nGot: %s\nWant: %s", item.UID, err.Error(), wantMsg)
+	}
+}
+
+func TestMapDeleteIfMatchWithCleanup(t *testing.T) {
+	t.Parallel()
+
+	type Item struct {
+		UID       string
+		CleanedUp bool
+	}
+
+	rwgMap := NewMap[string, *Item]()
+	item1 := &Item{UID: "item1"}
+	item2 := &Item{UID: "item2"}
+	rwgMap.Store(item1.UID, item1)
+	rwgMap.Store(item2.UID, item2)
+
+	item1Matcher := func(k string, v *Item) bool {
+		return item1.UID == "item1"
+	}
+
+	cleanupFn := func(k string, v *Item) error {
+		v.CleanedUp = true
+		return fmt.Errorf("err from uid %s", v.UID)
+	}
+	gotDeletedCount, err := rwgMap.DeleteIfMatchWithCleanup(item1Matcher, cleanupFn, item1.UID)
+
+	// Check that a non-nil error was returned.
+	if err == nil {
+		t.Fatalf("DeleteIfMatchWithCleanup() = nil; failed to return cleanup error")
+	}
+
+	// Check that only item1's cleanup function was called, and that a deletedCount value of 1 was
+	// returned.
+	wantDeletedCount := 1
+	if gotDeletedCount != wantDeletedCount {
+		t.Errorf("DeleteIfMatchWithCleanup() returned deletion count of %d; want %d", gotDeletedCount, wantDeletedCount)
+	}
+	if !item1.CleanedUp {
+		t.Errorf("item %q was not cleaned up", item1.UID)
+	}
+	if item2.CleanedUp {
+		t.Errorf("item %q was cleaned up", item2.UID)
+	}
+
+	// Check that the item's cleanup error message was present in the wrapped error.
+	wantMsg := fmt.Sprintf("err from uid %s", item1.UID)
+	if !strings.Contains(err.Error(), wantMsg) {
+		t.Errorf("DeleteIfMatchWithCleanup did not include error from item %q:\nGot: %s\nWant: %s", item1.UID, err.Error(), wantMsg)
 	}
 }
 
