@@ -348,6 +348,36 @@ func TestOrElseMustLazy(t *testing.T) {
 	}
 }
 
+func TestOrZero(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		opt       Optional[int]
+		wantValue int
+	}{
+		{
+			name:      "empty",
+			opt:       Empty[int](),
+			wantValue: *(new(int)),
+		},
+		{
+			name:      "populated",
+			opt:       Of(100),
+			wantValue: 100,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.opt.OrZero(); got != tc.wantValue {
+				t.Fatalf("OrZero() got %v, want: %v", got, tc.wantValue)
+			}
+		})
+	}
+}
+
 func TestEqual(t *testing.T) {
 	t.Parallel()
 

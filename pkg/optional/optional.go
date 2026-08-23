@@ -105,6 +105,13 @@ func (o *Optional[T]) OrElseMustLazy(callback func() T) T {
 	return callback()
 }
 
+// OrZero returns the value stored in the Optional if it is set, otherwise it returns a new
+// zero-valued instance of the Optional's type.
+func (o *Optional[T]) OrZero() T {
+	var zeroVal T
+	return o.OrElse(zeroVal)
+}
+
 // Equal returns true if the given Optional is equal to another.
 //
 // The provided argument may be an Optional of the same type, or a pointer to one. If an argument
