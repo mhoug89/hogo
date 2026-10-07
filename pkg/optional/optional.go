@@ -23,7 +23,7 @@ import (
 // This type should not be directly instantiated; use [Of] or [Empty] instead.
 type Optional[T any] struct {
 	isSet bool
-	value *T
+	value T
 }
 
 // Empty creates a new, unset Optional.
@@ -35,7 +35,7 @@ func Empty[T any]() Optional[T] {
 func Of[T any](value T) Optional[T] {
 	return Optional[T]{
 		isSet: true,
-		value: &value,
+		value: value,
 	}
 }
 
@@ -52,7 +52,7 @@ func (o *Optional[T]) IsEmpty() bool {
 // Set populates the Optional with the given value.
 func (o *Optional[T]) Set(value T) {
 	o.isSet = true
-	o.value = &value
+	o.value = value
 }
 
 // Get returns the value stored in the Optional if it is set.
@@ -63,7 +63,7 @@ func (o *Optional[T]) Get() (T, error) {
 		var tZeroVal T
 		return tZeroVal, ErrNotSet
 	}
-	return *o.value, nil
+	return o.value, nil
 }
 
 // MustGet returns the value stored in the Optional if it is set.
@@ -73,14 +73,14 @@ func (o *Optional[T]) MustGet() T {
 	if o.IsEmpty() {
 		panic(ErrNotSet)
 	}
-	return *o.value
+	return o.value
 }
 
 // OrElse returns the value stored in the Optional if it is set, otherwise it returns
 // defaultValue.
 func (o *Optional[T]) OrElse(defaultValue T) T {
 	if o.IsSet() {
-		return *o.value
+		return o.value
 	}
 	return defaultValue
 }
@@ -89,7 +89,7 @@ func (o *Optional[T]) OrElse(defaultValue T) T {
 // result of the given callback.
 func (o *Optional[T]) OrElseLazy(callback func() (T, error)) (T, error) {
 	if o.IsSet() {
-		return *o.value, nil
+		return o.value, nil
 	}
 	return callback()
 }
@@ -100,7 +100,7 @@ func (o *Optional[T]) OrElseLazy(callback func() (T, error)) (T, error) {
 // If the required callback may return an error, use [Optional.OrElseLazy] instead.
 func (o *Optional[T]) OrElseMustLazy(callback func() T) T {
 	if o.IsSet() {
-		return *o.value
+		return o.value
 	}
 	return callback()
 }
@@ -134,7 +134,7 @@ func (o *Optional[T]) Equal(o2 any) bool {
 	if o.IsSet() != other.IsSet() {
 		return false
 	}
-	return o.IsEmpty() || reflect.DeepEqual(*o.value, *other.value)
+	return o.IsEmpty() || reflect.DeepEqual(o.value, other.value)
 }
 
 // String returns a string representation of the Optional.
@@ -142,7 +142,7 @@ func (o *Optional[T]) Equal(o2 any) bool {
 // If the Optional in unset, the returned string will be "<empty>".
 func (o *Optional[T]) String() string {
 	if o.IsSet() {
-		return fmt.Sprint(*o.value)
+		return fmt.Sprint(o.value)
 	}
 	return "<empty>"
 }
@@ -152,7 +152,7 @@ func (o Optional[T]) MarshalJSON() ([]byte, error) {
 	if o.IsEmpty() {
 		return []byte("null"), nil
 	}
-	return json.Marshal(*o.value)
+	return json.Marshal(o.value)
 }
 
 // UnmarshalJSON unmarshals the JSON-encoded data into the underlying value of an Optional. If the
@@ -162,7 +162,7 @@ func (o *Optional[T]) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &dest); err != nil {
 		return err
 	}
-	o.value = &dest
+	o.value = dest
 	o.isSet = true
 	return nil
 }
